@@ -1,0 +1,9 @@
+TOPTARGETS := all clean
+
+SUBDIRS := ds1621-sim
+
+$(TOPTARGETS): $(SUBDIRS)
+$(SUBDIRS):
+	$(MAKE) -C $@ $(MAKECMDGOALS)
+
+.PHONY: $(TOPTARGETS) $(SUBDIRS)

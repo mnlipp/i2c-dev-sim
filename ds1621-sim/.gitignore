@@ -1,0 +1,8 @@
+/ds1621-sim.ko
+/ds1621-sim.mod
+/ds1621-sim.mod.c
+/ds1621-sim.mod.o
+/ds1621-sim.o
+/Module.symvers
+/modules.order
+/.ds1621-sim.*
