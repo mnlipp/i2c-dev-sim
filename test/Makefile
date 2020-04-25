@@ -1,9 +1,9 @@
 TOPTARGETS := all clean
 
-SUBDIRS := i2c-virt-bus-tests
+SUBDIRS := i2c-virt-bus-test
 
 $(TOPTARGETS): $(SUBDIRS)
 $(SUBDIRS):
-	$(MAKE) -C $@ $(MAKECMDGOALS)
+	$(MAKE) -C $@/Debug $(MAKECMDGOALS)
 
 .PHONY: $(TOPTARGETS) $(SUBDIRS)
