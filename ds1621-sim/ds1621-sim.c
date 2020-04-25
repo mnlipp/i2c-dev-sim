@@ -48,7 +48,7 @@ static int i2c_xfer(struct i2c_adapter *adap, int idx, struct i2c_msg* msg) {
 static int ds1621_xfer(struct i2c_adapter *adap, struct i2c_msg* msgs, int num) {
 	int i;
 
-	dev_dbg(&adap->dev, "master xfer %d messages:\n", num);
+	dev_dbg(&adap->dev, "ds1621-sim xfer %d messages:\n", num);
 
 	for (i = 0; i < num; i++) {
 		int ret = i2c_xfer(adap, i, &msgs[i]);

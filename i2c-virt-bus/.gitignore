@@ -1,0 +1,8 @@
+/Module.symvers
+/modules.order
+/.i2c-virt-bus.*
+/*.cmd
+/*.mod
+/*.mod.*
+/*.ko
+/*.o
