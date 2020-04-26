@@ -1,8 +1,8 @@
 # I2C device simulation
 
 During the coronavirus pandemic the need for simulating I2C devices arose.
-Students couldn't physically attend their laboratories and therefore
-the idea of making simulated (or virtual) I2C devices available arose.
+Students couldn't physically attend their laboratories and therefore I came
+up with the idea of making simulated (or virtual) I2C devices available.
 This would allow the students to still exercise the usage of the API
 to interact with the (simulated) devices. Of course, there are no physical 
 effects like blinking LEDs or alike, but ... better than nothing.
