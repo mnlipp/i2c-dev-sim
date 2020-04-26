@@ -23,12 +23,14 @@ i2c-eeprom-slave which I wanted to use as a sample device).
 The i2c-virt-bus driver therefore creates two I2C busses. The first
 ("`/dev/i2c-<n>`") is a dummy that manages the slave devices. It exposes
 no other capabilities. Although there is no such thing with I2C busses,
-you can think of it as a hub to which all slave devices are attached.
+you can think of it as a transparent hub to which all slave devices are 
+attached.
 
-The second ("`/dev/i2c-<n+1>`") I2C bus created when loading the driver
-is the I2C master driver that can be used to access the slave devices
+The second ("`/dev/i2c-<n+1>`") I2C bus created when loading the module
+uses an I2C master driver that can be used to access the slave devices
 as if they were attached to its bus (see the setup-test target 
-[here](test/Makefile)).
+[here](test/Makefile)). You can think of this bus as your connection
+to the hub.
 
 ## Future development
 
