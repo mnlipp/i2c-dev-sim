@@ -43,7 +43,7 @@ them beyond my needs during the pandemic.
 
 ## Eclipse settings for kernel modules
 
-Of course, real kernel developers uses vi or emacs. But I have grown
+Of course, real kernel developers use vi or emacs. But I have grown
 accustomed to using eclipse, its refactoring capabilities and the
 ease of exploring unknown environments by hitting `F3`. I have no doubt
 that something like this can be achieved with emacs (which I did use
