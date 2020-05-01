@@ -1,6 +1,6 @@
 TOPTARGETS := all clean
 
-SUBDIRS := ds1621-sim i2c-virt-bus test
+SUBDIRS := i2c-virt-bus test
 
 $(TOPTARGETS): $(SUBDIRS)
 $(SUBDIRS):
