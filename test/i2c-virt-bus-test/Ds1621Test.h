@@ -29,6 +29,8 @@ class Ds1621Test : public CppUnit::TestFixture {
 	CPPUNIT_TEST(testSingle);
 	CPPUNIT_TEST(testLowPrecision);
 	CPPUNIT_TEST(testHighPrecision);
+	CPPUNIT_TEST(testLowFlag);
+	CPPUNIT_TEST(testHighFlag);
 	CPPUNIT_TEST_SUITE_END();
 
 private:
@@ -43,77 +45,15 @@ private:
 	const unsigned char stopConvertT = 0x22;
 	std::string sysFsDir;
 
-	void testRw(unsigned char data[]) {
-		// write two bytes
-		int res = write(ds1621Dev, data, 3);
-		CPPUNIT_ASSERT_MESSAGE("Failed to write data", res == 3);
-		// write address for reading back
-		res = write(ds1621Dev, data, 1);
-		CPPUNIT_ASSERT_MESSAGE("Failed to write data", res == 1);
-		// read back
-		char in[2];
-		res = read(ds1621Dev, in, 2);
-		CPPUNIT_ASSERT_MESSAGE("Failed to read data", res == 2);
-		CPPUNIT_ASSERT(in[0] == data[1]);
-		CPPUNIT_ASSERT(in[1] ==data[2]);
-	}
-
-	void storeTemperature(float temperature) {
-		std::ofstream temp(sysFsDir + "/temperature");
-		temp << (int)(temperature * 1000);
-		CPPUNIT_ASSERT_MESSAGE("Cannot store temperature", !temp.fail());
-		temp.close();
-	}
-
-	float readTemperatureLowPrecision() {
-		unsigned char out[] = { readTemperature };
-		int res = write(ds1621Dev, out, 1);
-		CPPUNIT_ASSERT_MESSAGE("Failed to write data", res == 1);
-		// read
-		unsigned char in[2];
-		res = read(ds1621Dev, in, 2);
-		CPPUNIT_ASSERT_MESSAGE("Failed to read data", res == 2);
-		int16_t val = in[0] << 8 | in[1];
-		val >>= 7;
-		if (val & 0x100) {
-			val |= 0xfe00;
-		}
-		return val / 2.0;
-	}
-
-	float readTemperatureHighPrecision() {
-		unsigned char out[] = { readTemperature };
-		// Get temperature
-		int res = write(ds1621Dev, out, 1);
-		CPPUNIT_ASSERT_MESSAGE("Failed to write data", res == 1);
-		unsigned char temp[2];
-		res = read(ds1621Dev, temp, 2);
-		CPPUNIT_ASSERT_MESSAGE("Failed to read data", res == 2);
-
-		// Get counter
-		out[0] = readCounter;
-		res = write(ds1621Dev, out, 1);
-		CPPUNIT_ASSERT_MESSAGE("Failed to write data", res == 1);
-		unsigned char count_remain;
-		res = read(ds1621Dev, &count_remain, 1);
-		CPPUNIT_ASSERT_MESSAGE("Failed to read data", res == 1);
-
-		// Get slope
-		out[0] = readSlope;
-		res = write(ds1621Dev, out, 1);
-		CPPUNIT_ASSERT_MESSAGE("Failed to write data", res == 1);
-		unsigned char count_per_c;
-		res = read(ds1621Dev, &count_per_c, 1);
-		CPPUNIT_ASSERT_MESSAGE("Failed to read data", res == 1);
-
-		float temperature = (char)temp[0] - 0.25
-				+ (count_per_c - count_remain) / (float)count_per_c;
-		return temperature;
-	}
-
-	bool cmpCents(float a, float b) {
-		return (int)(a * 100 + 0.5) == (int)(b * 100 + 0.5);
-	}
+	void testRw(unsigned char data[]);
+	void storeTemperature(float temperature);
+	float readTemperatureLowPrecision();
+	float readTemperatureHighPrecision();
+	bool cmpCents(float a, float b);
+	void writeAc(uint8_t value);
+	uint8_t readAc();
+	void startContinuousConversion();
+	void stopContinuousConversion();
 
 public:
 	void setUp() {
@@ -156,10 +96,7 @@ public:
 	}
 
 	void testLowPrecision() {
-		// Start continuous conversion
-		unsigned char out[] = { accessAC, 0x0, startConvertT };
-		int res = write(ds1621Dev, out, 3);
-		CPPUNIT_ASSERT_MESSAGE("Failed to write data", res == 3);
+		startContinuousConversion();
 
 		for (float givenTemp = -10; givenTemp <= 10; givenTemp += 0.5) {
 			storeTemperature(givenTemp);
@@ -184,17 +121,11 @@ public:
 		storeTemperature(0.8);
 		CPPUNIT_ASSERT(readTemperatureLowPrecision() == 1);
 
-		// Stop continuous conversion
-		out[0] = { stopConvertT };
-		res = write(ds1621Dev, out, 1);
-		CPPUNIT_ASSERT_MESSAGE("Failed to write data", res == 1);
+		stopContinuousConversion();
 	}
 
 	void testHighPrecision() {
-		// Start continuous conversion
-		unsigned char out[] = { accessAC, 0x0, startConvertT };
-		int res = write(ds1621Dev, out, 3);
-		CPPUNIT_ASSERT_MESSAGE("Failed to write data", res == 3);
+		startContinuousConversion();
 
 		for (float givenTemp = -3; givenTemp <= 3; givenTemp += 0.01) {
 			storeTemperature(givenTemp);
@@ -204,10 +135,54 @@ public:
 					cmpCents(readTemperatureHighPrecision(), givenTemp));
 		}
 
-		// Stop continuous conversion
-		out[0] = { stopConvertT };
-		res = write(ds1621Dev, out, 1);
-		CPPUNIT_ASSERT_MESSAGE("Failed to write data", res == 1);
+		stopContinuousConversion();
+	}
+
+	void testLowFlag() {
+		startContinuousConversion();
+
+		storeTemperature(0);
+		writeAc(readAc() & ~0x60);
+		CPPUNIT_ASSERT((readAc() & 0x6c) == 0x8);
+
+		unsigned char out[] = { accessTl, -10 & 0xff, 0 };
+		int res = write(ds1621Dev, out, 3);
+		CPPUNIT_ASSERT_MESSAGE("Failed to write data", res == 3);
+
+		float temp = 0;
+		while (temp > -20) {
+			storeTemperature(temp);
+			if (readAc() & 0x20) {
+				break;
+			}
+			temp -= 1;
+		}
+		CPPUNIT_ASSERT(temp == -10);
+
+		stopContinuousConversion();
+	}
+
+	void testHighFlag() {
+		startContinuousConversion();
+
+		storeTemperature(0);
+		writeAc(readAc() & ~0x60);
+
+		unsigned char out[] = { accessTh, 50, 0 };
+		int res = write(ds1621Dev, out, 3);
+		CPPUNIT_ASSERT_MESSAGE("Failed to write data", res == 3);
+
+		float temp = 0;
+		while (temp < 100) {
+			storeTemperature(temp);
+			if (readAc() & 0x40) {
+				break;
+			}
+			temp += 1;
+		}
+		CPPUNIT_ASSERT(temp == 50);
+
+		stopContinuousConversion();
 	}
 };
 

@@ -15,6 +15,8 @@
 #include <linux/spinlock.h>
 #include <linux/sysfs.h>
 
+#define AC_THF (1 << 6)
+#define AC_TLF (1 << 5)
 #define AC_1SHOT (1 << 0)
 
 struct ds1621_data {
@@ -34,6 +36,24 @@ struct ds1621_data {
 	// spinlock_t buffer_lock;
 };
 
+static int leftAlignedToInt(s16 value) {
+	value >>= 7;
+	if (value & 0x100) {
+		value |= 0xfe00;
+	}
+	return value * 500;
+}
+
+static void setTemperature(struct ds1621_data *ds1621, int value) {
+	ds1621->measured_temperature = value;
+	if (value <= leftAlignedToInt(ds1621->TL)) {
+		ds1621->AC |= AC_TLF;
+	}
+	if (value >= leftAlignedToInt(ds1621->TH)) {
+		ds1621->AC |= AC_THF;
+	}
+}
+
 static void handle_command(struct ds1621_data *ds1621, u8 cmd) {
 	int fracDelta;
 	ds1621->pending = 1;
@@ -49,7 +69,7 @@ static void handle_command(struct ds1621_data *ds1621, u8 cmd) {
 		ds1621->write_target = &ds1621->TL;
 		break;
 	case 0xac: // Access Config
-		ds1621->buffer = ds1621->AC;
+		ds1621->buffer = ds1621->AC | 0x8;
 		ds1621->write_target = &ds1621->AC;
 		break;
 	case 0xa8: // Read Counter
@@ -68,7 +88,7 @@ static void handle_command(struct ds1621_data *ds1621, u8 cmd) {
 		ds1621->read_counter = (750 - fracDelta) * ds1621->read_slope / 1000;
 		break;
 	case 0xee: // Start Convert T
-		ds1621->measured_temperature = ds1621->stored_temperature;
+		setTemperature(ds1621, ds1621->stored_temperature);
 		if (!(ds1621->AC & AC_1SHOT)) {
 			ds1621->converting_continuously = TRUE;
 		}
@@ -148,7 +168,7 @@ ssize_t temperature_store(struct device *dev, struct device_attribute *attr,
 		return res;
 	}
 	if (ds1621->converting_continuously) {
-		ds1621->measured_temperature = ds1621->stored_temperature;
+		setTemperature(ds1621, ds1621->stored_temperature);
 	}
 	return count;
 }
