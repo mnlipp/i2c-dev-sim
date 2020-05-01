@@ -21,23 +21,10 @@
 /*
  * Handle single transfer. Return negative errno on error.
  */
-static int i2c_xfer(struct i2c_adapter *adap, int idx, struct i2c_msg* msg) {
-	struct i2c_adapter* hub = i2c_get_adapdata(adap);
-	struct i2c_client *client = NULL;
-	int found = FALSE;
+static int i2c_xfer(struct i2c_adapter *adap, struct i2c_client *client,
+		int idx, struct i2c_msg* msg) {
 	u8 value;
 	int i;
-
-	list_for_each_entry(client , &hub->userspace_clients, detected) {
-		dev_dbg(&adap->dev, "  %x ?= %s@%x\n", msg->addr, client->name, client->addr);
-		if (msg->addr == client->addr) {
-			found = TRUE;
-			break;
-		}
-    }
-	if (!found) {
-		return -ENODEV;
-	}
 
 	dev_dbg(&adap->dev, "  %d: %s (flags %d) %d bytes %s 0x%02x\n",
 				idx, msg->flags & I2C_M_RD ? "read" : "write",
@@ -69,12 +56,32 @@ static int i2c_xfer(struct i2c_adapter *adap, int idx, struct i2c_msg* msg) {
  */
 static int virt_master_xfer(
 		struct i2c_adapter *adap, struct i2c_msg* msgs, int num) {
+	struct i2c_adapter* hub = i2c_get_adapdata(adap);
 	int i;
+	struct i2c_client *client = NULL;
+	int found = FALSE;
+	int ret;
 
 	dev_dbg(&adap->dev, "I2C virt bus xfer %d messages:\n", num);
 
+	// Process all messages
 	for (i = 0; i < num; i++) {
-		int ret = i2c_xfer(adap, i, &msgs[i]);
+		// No or different client?
+		if (!client || client->addr != msgs[i].addr) {
+			// Find registered client
+			list_for_each_entry(client , &hub->userspace_clients, detected) {
+				if (msgs[i].addr == client->addr) {
+					found = TRUE;
+					break;
+				}
+			}
+			if (!found) {
+				return -ENODEV;
+			}
+		}
+
+		// Transfer current message
+		ret = i2c_xfer(adap, client, i, &msgs[i]);
 		if (ret < 0) {
 			return ret;
 		}
