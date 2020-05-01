@@ -30,10 +30,10 @@ private:
 
 public:
 	void setUp() {
-		char* i2cBus = getenv("I2C_BUS");
-		CPPUNIT_ASSERT_MESSAGE("I2C_BUS not set in environment",
-				i2cBus != nullptr);
-		eepromDev = open(i2cBus, O_RDWR);
+		CPPUNIT_ASSERT_MESSAGE("I2C_BUS_NUM not set in environment",
+				getenv("I2C_BUS_NUM") != nullptr);
+		std::string i2cBus = "/dev/i2c-" + std::string(getenv("I2C_BUS_NUM"));
+		eepromDev = open(i2cBus.c_str(), O_RDWR);
 		std::ostringstream msg;
 		msg << "Cannot open i2c bus " << i2cBus;
 		CPPUNIT_ASSERT_MESSAGE(msg.str(), eepromDev >= 0);
