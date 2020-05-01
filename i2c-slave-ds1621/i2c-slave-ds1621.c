@@ -35,6 +35,7 @@ struct ds1621_data {
 };
 
 static void handle_command(struct ds1621_data *ds1621, u8 cmd) {
+	int fracDelta;
 	ds1621->pending = 1;
 	switch (cmd) {
 	case 0xa1: // Access TH
@@ -61,6 +62,10 @@ static void handle_command(struct ds1621_data *ds1621, u8 cmd) {
 		ds1621->pending = 2;
 		ds1621->buffer = (ds1621->measured_temperature <= 0 ? -1 : 1)
 				* ((abs(ds1621->measured_temperature) + 250) / 500) << 7;
+		fracDelta = ds1621->measured_temperature
+				- (char)(ds1621->buffer >> 8) * 1000;
+		ds1621->read_slope = 255;
+		ds1621->read_counter = (750 - fracDelta) * ds1621->read_slope / 1000;
 		break;
 	case 0xee: // Start Convert T
 		ds1621->measured_temperature = ds1621->stored_temperature;
