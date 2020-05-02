@@ -29,6 +29,15 @@ void Ds1621Test::storeTemperature(float temperature) {
 	temp.close();
 }
 
+int Ds1621Test::showTout() {
+	std::ifstream tout(sysFsDir + "/tout");
+	int state;
+	tout >> state;
+	CPPUNIT_ASSERT_MESSAGE("Cannot retrieve Tout", !tout.fail());
+	tout.close();
+	return state;
+}
+
 float Ds1621Test::readTemperatureLowPrecision() {
 	unsigned char out[] = { readTemperature };
 	int res = write(ds1621Dev, out, 1);

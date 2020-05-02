@@ -17,6 +17,7 @@
 
 #define AC_THF (1 << 6)
 #define AC_TLF (1 << 5)
+#define AC_POL (1 << 1)
 #define AC_1SHOT (1 << 0)
 
 struct ds1621_data {
@@ -25,7 +26,7 @@ struct ds1621_data {
 	s16 TL;
 	s16 TH;
 	u8 AC;
-	u8 tout;
+	u8 tOutActive;
 	u8 read_counter;
 	u8 read_slope;
 	void* write_target;
@@ -33,7 +34,8 @@ struct ds1621_data {
 	u8 pending;
 	u8 converting_continuously;
 	struct device_attribute temperature_ac;
-	// spinlock_t buffer_lock;
+	struct device_attribute tout_ac;
+	spinlock_t register_lock;
 };
 
 static int leftAlignedToInt(s16 value) {
@@ -45,13 +47,19 @@ static int leftAlignedToInt(s16 value) {
 }
 
 static void setTemperature(struct ds1621_data *ds1621, int value) {
+	spin_lock(&ds1621->register_lock);
 	ds1621->measured_temperature = value;
+	if (value >= leftAlignedToInt(ds1621->TH)) {
+		ds1621->AC |= AC_THF;
+		ds1621->tOutActive = 1;
+	}
 	if (value <= leftAlignedToInt(ds1621->TL)) {
 		ds1621->AC |= AC_TLF;
 	}
-	if (value >= leftAlignedToInt(ds1621->TH)) {
-		ds1621->AC |= AC_THF;
+	if (value < leftAlignedToInt(ds1621->TL)) {
+		ds1621->tOutActive = 0;
 	}
+	spin_unlock(&ds1621->register_lock);
 }
 
 static void handle_command(struct ds1621_data *ds1621, u8 cmd) {
@@ -80,12 +88,14 @@ static void handle_command(struct ds1621_data *ds1621, u8 cmd) {
 		break;
 	case 0xaa: // Read Temperature
 		ds1621->pending = 2;
+		spin_lock(&ds1621->register_lock);
 		ds1621->buffer = (ds1621->measured_temperature <= 0 ? -1 : 1)
 				* ((abs(ds1621->measured_temperature) + 250) / 500) << 7;
 		fracDelta = ds1621->measured_temperature
 				- (char)(ds1621->buffer >> 8) * 1000;
 		ds1621->read_slope = 255;
 		ds1621->read_counter = (750 - fracDelta) * ds1621->read_slope / 1000;
+		spin_unlock(&ds1621->register_lock);
 		break;
 	case 0xee: // Start Convert T
 		setTemperature(ds1621, ds1621->stored_temperature);
@@ -118,6 +128,10 @@ static int i2c_slave_ds1621_slave_cb(struct i2c_client *client,
 				if (ds1621->write_target == &ds1621->TH
 						|| ds1621->write_target == &ds1621->TL) {
 					*((u16*)(ds1621->write_target)) = ds1621->buffer;
+					// Maybe adjust flags
+					if (ds1621->converting_continuously) {
+						setTemperature(ds1621, ds1621->measured_temperature);
+					}
 				} else {
 					*((u8*)(ds1621->write_target)) = ds1621->buffer;
 				}
@@ -173,6 +187,13 @@ ssize_t temperature_store(struct device *dev, struct device_attribute *attr,
 	return count;
 }
 
+ssize_t tout_show(struct device *dev, struct device_attribute *attr,
+			char *buf) {
+	struct ds1621_data *ds1621
+		= (struct ds1621_data*)i2c_get_clientdata(to_i2c_client(dev));
+    return scnprintf(buf, PAGE_SIZE, "%d\n",
+    		(ds1621->AC & AC_POL) ? ds1621->tOutActive : (1 - ds1621->tOutActive));
+}
 
 static int i2c_slave_ds1621_probe(struct i2c_client *client,
 		const struct i2c_device_id *id) {
@@ -197,9 +218,9 @@ static int i2c_slave_ds1621_probe(struct i2c_client *client,
 	ds1621->TH = 0;
 	ds1621->AC = 0;
 	ds1621->converting_continuously = 0;
-	ds1621->tout = 0;
+	ds1621->tOutActive = 0;
 	ds1621->pending = 0;
-	// spin_lock_init(&ds1621->buffer_lock);
+	spin_lock_init(&ds1621->register_lock);
 	i2c_set_clientdata(client, ds1621);
 
 	// Prepare sysfs
@@ -208,8 +229,15 @@ static int i2c_slave_ds1621_probe(struct i2c_client *client,
 	ds1621->temperature_ac.attr.mode = S_IRUSR | S_IWUSR;
 	ds1621->temperature_ac.show = temperature_show;
 	ds1621->temperature_ac.store = temperature_store;
-
 	ret = sysfs_create_file(&client->dev.kobj, &ds1621->temperature_ac.attr);
+	if (ret)
+		return ret;
+	sysfs_attr_init(ds1621->tout_ac.attr);
+	ds1621->tout_ac.attr.name = "tout";
+	ds1621->tout_ac.attr.mode = S_IRUGO;
+	ds1621->tout_ac.show = tout_show;
+	ds1621->tout_ac.store = NULL;
+	ret = sysfs_create_file(&client->dev.kobj, &ds1621->tout_ac.attr);
 	if (ret)
 		return ret;
 
@@ -228,6 +256,7 @@ static int i2c_slave_ds1621_remove(struct i2c_client *client) {
 
 	i2c_slave_unregister(client);
 	sysfs_remove_file(&client->dev.kobj, &ds1621->temperature_ac.attr);
+	sysfs_remove_file(&client->dev.kobj, &ds1621->tout_ac.attr);
 
 	return 0;
 }

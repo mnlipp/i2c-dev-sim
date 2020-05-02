@@ -31,6 +31,7 @@ class Ds1621Test : public CppUnit::TestFixture {
 	CPPUNIT_TEST(testHighPrecision);
 	CPPUNIT_TEST(testLowFlag);
 	CPPUNIT_TEST(testHighFlag);
+	CPPUNIT_TEST(testTout);
 	CPPUNIT_TEST_SUITE_END();
 
 private:
@@ -47,6 +48,7 @@ private:
 
 	void testRw(unsigned char data[]);
 	void storeTemperature(float temperature);
+	int showTout();
 	float readTemperatureLowPrecision();
 	float readTemperatureHighPrecision();
 	bool cmpCents(float a, float b);
@@ -181,6 +183,43 @@ public:
 			temp += 1;
 		}
 		CPPUNIT_ASSERT(temp == 50);
+
+		stopContinuousConversion();
+	}
+
+	void testTout() {
+		startContinuousConversion();
+
+		storeTemperature(21);
+		writeAc(readAc() & ~0x2);
+
+		// Threshold high 25
+		unsigned char out[] = { accessTh, 25, 0 };
+		int res = write(ds1621Dev, out, 3);
+		CPPUNIT_ASSERT_MESSAGE("Failed to write data", res == 3);
+		// Threshold low 25
+		out[0] = accessTl;
+		res = write(ds1621Dev, out, 3);
+		CPPUNIT_ASSERT_MESSAGE("Failed to write data", res == 3);
+		// Threshold low 18
+		out[1] = 18;
+		res = write(ds1621Dev, out, 3);
+		CPPUNIT_ASSERT_MESSAGE("Failed to write data", res == 3);
+
+		CPPUNIT_ASSERT(showTout() == 1);
+		writeAc(readAc() | 0x2);
+		CPPUNIT_ASSERT(showTout() == 0);
+
+		storeTemperature(22);
+		CPPUNIT_ASSERT(showTout() == 0);
+		storeTemperature(25);
+		CPPUNIT_ASSERT(showTout() == 1);
+		storeTemperature(26);
+		CPPUNIT_ASSERT(showTout() == 1);
+		storeTemperature(21);
+		CPPUNIT_ASSERT(showTout() == 1);
+		storeTemperature(17);
+		CPPUNIT_ASSERT(showTout() == 0);
 
 		stopContinuousConversion();
 	}
