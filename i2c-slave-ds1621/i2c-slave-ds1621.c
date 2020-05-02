@@ -21,23 +21,38 @@
 #define AC_1SHOT (1 << 0)
 
 struct ds1621_data {
+	/** Temperature stored using sysfs */
 	int stored_temperature;
+	/**
+	 * Temperature measured; copied from stored on start convert command
+	 * or when in continuous operation
+	 */
 	int measured_temperature;
 	s16 TL;
 	s16 TH;
 	u8 AC;
+	/** Active flag. Combined with AV_POL to determine Tout. */
 	u8 tOutActive;
 	u8 read_counter;
 	u8 read_slope;
-	void* write_target;
+	/** Buffer for e.g. data to be sent to master */
 	u16 buffer;
+	/** Number of data bytes expected from master or to be sent to master */
 	u8 pending;
+	/** Set on receipt of command to "remember" target for received data. */
+	void* write_target;
 	u8 converting_continuously;
+	/** Sysfs attribute for showing and storing "sensor" temperature */
 	struct device_attribute temperature_ac;
+	/** Sysfs attribute for showing Tout state */
 	struct device_attribute tout_ac;
 	spinlock_t register_lock;
 };
 
+/**
+ * Convert internal value representation (MSB integer part,
+ * LSB 0,5) to m°C.
+ */
 static int leftAlignedToInt(s16 value) {
 	value >>= 7;
 	if (value & 0x100) {
@@ -46,7 +61,11 @@ static int leftAlignedToInt(s16 value) {
 	return value * 500;
 }
 
-static void setTemperature(struct ds1621_data *ds1621, int value) {
+/**
+ * Update the measured temperature. Apart from setting the value,
+ * this function adjusts the flags in AC and tOutActive.
+ */
+static void updateTemperature(struct ds1621_data *ds1621, int value) {
 	spin_lock(&ds1621->register_lock);
 	ds1621->measured_temperature = value;
 	if (value >= leftAlignedToInt(ds1621->TH)) {
@@ -98,7 +117,7 @@ static void handle_command(struct ds1621_data *ds1621, u8 cmd) {
 		spin_unlock(&ds1621->register_lock);
 		break;
 	case 0xee: // Start Convert T
-		setTemperature(ds1621, ds1621->stored_temperature);
+		updateTemperature(ds1621, ds1621->stored_temperature);
 		if (!(ds1621->AC & AC_1SHOT)) {
 			ds1621->converting_continuously = TRUE;
 		}
@@ -112,6 +131,10 @@ static void handle_command(struct ds1621_data *ds1621, u8 cmd) {
 	}
 }
 
+/**
+ * Slave callback routine. Handles the data received from or to be
+ * sent to the I2C master.
+ */
 static int i2c_slave_ds1621_slave_cb(struct i2c_client *client,
 				     enum i2c_slave_event event, u8 *val) {
 	struct ds1621_data *ds1621 = i2c_get_clientdata(client);
@@ -130,7 +153,7 @@ static int i2c_slave_ds1621_slave_cb(struct i2c_client *client,
 					*((u16*)(ds1621->write_target)) = ds1621->buffer;
 					// Maybe adjust flags
 					if (ds1621->converting_continuously) {
-						setTemperature(ds1621, ds1621->measured_temperature);
+						updateTemperature(ds1621, ds1621->measured_temperature);
 					}
 				} else {
 					*((u8*)(ds1621->write_target)) = ds1621->buffer;
@@ -163,6 +186,9 @@ static int i2c_slave_ds1621_slave_cb(struct i2c_client *client,
 	return 0;
 }
 
+/**
+ * Sysfs function that shows the current sensor temperature in m°C.
+ */
 ssize_t temperature_show(struct device *dev, struct device_attribute *attr,
 			char *buf) {
 	struct ds1621_data *ds1621
@@ -170,6 +196,9 @@ ssize_t temperature_show(struct device *dev, struct device_attribute *attr,
     return scnprintf(buf, PAGE_SIZE, "%d\n", ds1621->stored_temperature);
 }
 
+/**
+ * Sysfs function that stores the current sensor temperature in m°C.
+ */
 ssize_t temperature_store(struct device *dev, struct device_attribute *attr,
 			 const char *buf, size_t count) {
 	int res;
@@ -182,11 +211,14 @@ ssize_t temperature_store(struct device *dev, struct device_attribute *attr,
 		return res;
 	}
 	if (ds1621->converting_continuously) {
-		setTemperature(ds1621, ds1621->stored_temperature);
+		updateTemperature(ds1621, ds1621->stored_temperature);
 	}
 	return count;
 }
 
+/**
+ * Sysfs function that shows the logical value of the Tout pin.
+ */
 ssize_t tout_show(struct device *dev, struct device_attribute *attr,
 			char *buf) {
 	struct ds1621_data *ds1621
@@ -195,6 +227,9 @@ ssize_t tout_show(struct device *dev, struct device_attribute *attr,
     		(ds1621->AC & AC_POL) ? ds1621->tOutActive : (1 - ds1621->tOutActive));
 }
 
+/**
+ * Registers a new slave device if the given address is valid.
+ */
 static int i2c_slave_ds1621_probe(struct i2c_client *client,
 		const struct i2c_device_id *id) {
 	struct ds1621_data *ds1621;
