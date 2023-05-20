@@ -230,8 +230,7 @@ ssize_t tout_show(struct device *dev, struct device_attribute *attr,
 /**
  * Registers a new slave device if the given address is valid.
  */
-static int i2c_slave_ds1621_probe(struct i2c_client *client,
-		const struct i2c_device_id *id) {
+static int i2c_slave_ds1621_probe(struct i2c_client *client) {
 	struct ds1621_data *ds1621;
 	int ret;
 
@@ -286,14 +285,14 @@ static int i2c_slave_ds1621_probe(struct i2c_client *client,
 	return 0;
 };
 
-static int i2c_slave_ds1621_remove(struct i2c_client *client) {
+static void i2c_slave_ds1621_remove(struct i2c_client *client) {
 	struct ds1621_data *ds1621 = i2c_get_clientdata(client);
 
 	i2c_slave_unregister(client);
 	sysfs_remove_file(&client->dev.kobj, &ds1621->temperature_ac.attr);
 	sysfs_remove_file(&client->dev.kobj, &ds1621->tout_ac.attr);
 
-	return 0;
+	return;
 }
 
 static const struct i2c_device_id i2c_slave_ds1621_id[] = {
