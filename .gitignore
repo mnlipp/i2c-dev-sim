@@ -2,3 +2,5 @@ Module.symvers
 modules.order
 /hello/
 *~
+/.Module.symvers.cmd
+/.modules.order.cmd

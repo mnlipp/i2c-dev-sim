@@ -20,7 +20,7 @@
 
 static int reg_slave(struct i2c_client *slave) {
 	struct i2c_adapter *adap = slave->adapter;
-	struct i2c_driver* i2c_driver = to_i2c_driver(adap->dev.driver);
+//	struct i2c_driver* i2c_driver = to_i2c_driver(adap->dev.driver);
 
 	dev_dbg(&adap->dev, "Register slave %s\n", slave->name);
 
@@ -33,7 +33,7 @@ static int reg_slave(struct i2c_client *slave) {
 }
 
 static int unreg_slave(struct i2c_client *slave) {
-	void *priv = i2c_get_adapdata(slave->adapter);
+//	void *priv = i2c_get_adapdata(slave->adapter);
 
 	return 0;
 }
@@ -62,7 +62,7 @@ static const struct i2c_algorithm virt_hub_algorithm = {
 
 static struct i2c_adapter virt_bus_adapter = {
 	.owner		= THIS_MODULE,
-	.class		= I2C_CLASS_HWMON | I2C_CLASS_SPD,
+	.class		= I2C_CLASS_HWMON,
 	.algo		= &virt_hub_algorithm,
 	.name		= "I2C virt hub driver",
 };
@@ -70,6 +70,8 @@ static struct i2c_adapter virt_bus_adapter = {
 static void virt_hub_free(void) {
 //	kfree(stub_chips);
 }
+
+int __init virt_hub_init(struct i2c_adapter** adap);
 
 int __init virt_hub_init(struct i2c_adapter** adap) {
 	int ret;
@@ -95,6 +97,8 @@ int __init virt_hub_init(struct i2c_adapter** adap) {
 	virt_hub_free();
 	return ret;
 }
+
+void __exit virt_hub_exit(void);
 
 void __exit virt_hub_exit(void)
 {

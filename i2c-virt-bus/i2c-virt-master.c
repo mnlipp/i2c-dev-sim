@@ -105,7 +105,7 @@ static const struct i2c_algorithm virt_master_algorithm = {
 
 static struct i2c_adapter virt_master_adapter = {
 	.owner		= THIS_MODULE,
-	.class		= I2C_CLASS_HWMON | I2C_CLASS_SPD,
+	.class		= I2C_CLASS_HWMON,
 	.algo		= &virt_master_algorithm,
 	.name		= "I2C virt master driver",
 };

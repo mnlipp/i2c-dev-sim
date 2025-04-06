@@ -190,6 +190,8 @@ static int i2c_slave_ds1621_slave_cb(struct i2c_client *client,
  * Sysfs function that shows the current sensor temperature in m°C.
  */
 ssize_t temperature_show(struct device *dev, struct device_attribute *attr,
+			char *buf);
+ssize_t temperature_show(struct device *dev, struct device_attribute *attr,
 			char *buf) {
 	struct ds1621_data *ds1621
 		= (struct ds1621_data*)i2c_get_clientdata(to_i2c_client(dev));
@@ -199,6 +201,8 @@ ssize_t temperature_show(struct device *dev, struct device_attribute *attr,
 /**
  * Sysfs function that stores the current sensor temperature in m°C.
  */
+ssize_t temperature_store(struct device *dev, struct device_attribute *attr,
+			 const char *buf, size_t count);
 ssize_t temperature_store(struct device *dev, struct device_attribute *attr,
 			 const char *buf, size_t count) {
 	int res;
@@ -219,6 +223,8 @@ ssize_t temperature_store(struct device *dev, struct device_attribute *attr,
 /**
  * Sysfs function that shows the logical value of the Tout pin.
  */
+ssize_t tout_show(struct device *dev, struct device_attribute *attr,
+			char *buf);
 ssize_t tout_show(struct device *dev, struct device_attribute *attr,
 			char *buf) {
 	struct ds1621_data *ds1621
@@ -291,8 +297,6 @@ static void i2c_slave_ds1621_remove(struct i2c_client *client) {
 	i2c_slave_unregister(client);
 	sysfs_remove_file(&client->dev.kobj, &ds1621->temperature_ac.attr);
 	sysfs_remove_file(&client->dev.kobj, &ds1621->tout_ac.attr);
-
-	return;
 }
 
 static const struct i2c_device_id i2c_slave_ds1621_id[] = {

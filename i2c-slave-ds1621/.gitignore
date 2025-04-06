@@ -6,3 +6,7 @@
 /i2c-slave-ds1621.mod.c
 /i2c-slave-ds1621.mod.o
 /i2c-slave-ds1621.o
+/..module-common.o.cmd
+/.Module.symvers.cmd
+/.module-common.o
+/.modules.order.cmd
